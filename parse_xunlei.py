@@ -23,7 +23,6 @@ def run():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     with sync_playwright() as p:
-        # 启动无头浏览器，注入真实 User-Agent
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             viewport={"width": 1280, "height": 720},
@@ -31,6 +30,7 @@ def run():
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                 " (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
+            locale="zh-CN",
         )
         page = context.new_page()
 
@@ -45,7 +45,6 @@ def run():
             captured_files = []
             pass_code_token = ""
 
-            # 监听全局网络响应，直接拦截提取前端 JS 异步获取的数据
             def handle_response(response):
                 nonlocal pass_code_token, captured_files
                 url = response.url
@@ -103,18 +102,25 @@ def run():
 
             page.on("response", handle_response)
 
-            # 打开页面
             target_url = f"https://pan.xunlei.com/s/{share_id}?pwd={pwd}"
             print(f" └─ 正在加载页面: {target_url}")
-            page.goto(target_url, wait_until="networkidle", timeout=30000)
 
-            # 处理提取码弹窗（部分链接 URL 带 ?pwd= 不会自动提交，需脚本自动填表点击）
+            # 核心修改：等待 DOM 加载完成即可，避免因后台长连接导致 Timeout
+            try:
+                page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                print(f"   [!] 页面加载异常/超时，尝试继续执行: {e}")
+
+            # 给异步 API 请求预留 3 秒响应缓冲
+            page.wait_for_timeout(3000)
+
+            # 检查是否有提取码输入框并自动填表提交
             try:
                 pwd_input = page.locator(
                     "input[placeholder*='提取码'], input[placeholder*='密码']"
                 )
                 if pwd_input.is_visible(timeout=3000):
-                    print(" └─ 检查到提取码输入框，自动填写并提交...")
+                    print(" └─ 发现提取码输入框，自动填写并提交...")
                     pwd_input.fill(pwd)
                     btn = page.locator(
                         "button:has-text('提取'), button:has-text('确定')"
@@ -124,10 +130,7 @@ def run():
             except Exception:
                 pass
 
-            # 稍微等待网络数据接收完毕
-            page.wait_for_timeout(2000)
-
-            # 组装输出结构
+            # 组装输出 JSON
             out_data = {
                 "scriptVersion": "1.0.0",
                 "scriptAuthor": "sumuve",
@@ -146,7 +149,7 @@ def run():
                 f" ✅ 任务完成，写入 {out_path}，包含文件: {len(captured_files)} 个"
             )
 
-            # 移除当前 page 监听，准备下一个任务
+            # 移除当前页面的响应监听器
             page.remove_listener("response", handle_response)
 
         browser.close()
