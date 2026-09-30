@@ -1,9 +1,9 @@
 name: Xunlei Share Parser
 
 on:
-  workflow_dispatch: # 支持在 GitHub 界面手动触发点击运行
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # 可选：每天定时自动运行
+    - cron: '0 0 * * *'
 
 jobs:
   build-and-run:
@@ -28,7 +28,7 @@ jobs:
         run: |
           python parse_xunlei.py
 
-      - name: 自动提交生成的 JSON 文件到仓库
+      - name: 自动提交 JSON 结果
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -38,6 +38,11 @@ jobs:
           if git status --porcelain | grep -q .; then
             git commit -m "auto: update share json [skip ci]"
             git push
-          else
-            print "没有更改需要提交"
           fi
+
+      - name: 上传诊断截图Artifacts（如果抓取失败）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: output/*.png
