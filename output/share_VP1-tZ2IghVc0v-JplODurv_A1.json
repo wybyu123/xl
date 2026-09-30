@@ -5,5 +5,6 @@
   "files": [],
   "sourceTag": "xunlei",
   "shareId": "VP1-tZ2IghVc0v-JplODurv_A1",
-  "passCodeToken": ""
+  "passCodeToken": "",
+  "error": "60s 内未捕获 pass_code_token。请检查提取码、分享是否有效，或 GitHub runner 是否能访问迅雷。"
 }
